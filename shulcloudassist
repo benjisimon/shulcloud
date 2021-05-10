@@ -31,14 +31,26 @@ usage() {
 
 
 login() {
-  sccsrf=$(curl -s -c $COOKIE_JAR $BASE/  | grep sccsrf | sed -e 's/^.*value="//' -e 's/".*//')
-  curl -d action=login \
-       -d redirect=$BASE \
-       -d sccsrf=$sccsrf \
-       -d "email=$USER" \
-       -d "password=$PASSWORD" \
-       -c $COOKIE_JAR -b $COOKIE_JAR \
-       -s -i $BASE/login.php > /dev/null
+  refresh=yes
+  if [ -f "$COOKIE_JAR" ] ; then
+    last_modified=$(stat -f %m $COOKIE_JAR)
+    now=$(date +%s)
+    diff=$(($now - $last_modified))
+    if [ $diff -lt 1200 ] ; then
+      refresh=no
+    fi
+  fi
+
+  if [ "$refresh" = "yes" ] ; then
+    sccsrf=$(curl -s -c $COOKIE_JAR $BASE/  | grep sccsrf | sed -e 's/^.*value="//' -e 's/".*//')
+    curl -d action=login \
+         -d redirect=$BASE \
+         -d sccsrf=$sccsrf \
+         -d "email=$USER" \
+         -d "password=$PASSWORD" \
+         -c $COOKIE_JAR -b $COOKIE_JAR \
+         -s -i $BASE/login.php > /dev/null
+  fi
 }
 
 while getopts ":a:w:h" o; do
