@@ -1,0 +1,111 @@
+#!/bin/bash
+
+##
+## Script to automate stuff within shulcloud
+##
+
+if [ -f "$HOME/.shulcloudassistrc" ] ; then
+  . $HOME/.shulcloudassistrc
+elif [ -f "$HOME/.config/shulcloudassist" ] ; then
+  . $HOME/.config/shulcloudassist
+else
+  echo "No config file found. Giving up."
+  exit 2
+fi
+
+COOKIE_JAR=$HOME/.shulcloudassist.cookies
+
+case $(uname) in
+  Darwin)
+    DATE=gdate
+    ;;
+  *)
+    DATE=date
+    ;;
+esac
+
+usage() {
+  echo "Usage: $(basename $0) -a yz [-w <week-offset>]"
+  exit 1
+}
+
+
+login() {
+  sccsrf=$(curl -s -c $COOKIE_JAR $BASE/  | grep sccsrf | sed -e 's/^.*value="//' -e 's/".*//')
+  curl -d action=login \
+       -d redirect=$BASE \
+       -d sccsrf=$sccsrf \
+       -d "email=$USER" \
+       -d "password=$PASSWORD" \
+       -c $COOKIE_JAR -b $COOKIE_JAR \
+       -s -i $BASE/login.php > /dev/null
+}
+
+while getopts ":a:w:h" o; do
+  case "${o}" in
+    a)
+      action=$OPTARG
+      ;;
+    w)
+      week=$OPTARG
+      ;;
+    * | h)
+      usage
+      ;;
+  esac
+done
+
+case "$action" in
+  yz)
+    if [ -z "$week" ] ; then
+      week=0
+    fi
+    shift=$(($week * 7))
+
+    sow=$(($($DATE +%u) + 1 - $shift))
+    eow=$((6 - $sow))
+    start=$($DATE -d "$sow days ago" +%Y-%m-%d )
+    end=$($DATE -d "$eow days" +%Y-%m-%d )
+    start_fmt=$($DATE -d "$start" +%m/%d/%Y)
+    end_fmt=$($DATE -d "$end" +%m/%d/%Y)
+    now=$($DATE -d 00:00 +%s)
+    
+    login
+    
+    curl -s -G \
+         -d order=next_date \
+         -d order_asc=1 \
+         -d search= \
+         -d is_active= \
+         -d search_mourners= \
+         -d gender= \
+         -d setPerPage=100 \
+         -d start_date=$start \
+         -d text_start_date=$start_fmt \
+         -d last_start_date=$end \
+         -d end_date=$end \
+         -d text_end_date=$end \
+         -d last_end_date=$end_fmt \
+         -d has_plot= \
+         -d has_plaque= \
+         -d has_relatives=Y \
+         -d action=export \
+         -b $COOKIE_JAR -c $COOKIE_JAR \
+         $BASE/admin/yahrzeits.php | \
+      sed '1d' | 
+      while read line ; do
+        d_fname=$(echo $line | csvcut -c 3)
+        d_lname=$(echo $line | csvcut -c 4)
+        mourner=$(echo $line | csvcut -c 22 | tr -d '"')
+        observed=$(echo $line | csvcut -c 10)
+        offset=$(($(($($DATE -d "$observed" +%s) - $now)) / 86400))
+        date=$($DATE -d "$observed" +"%a %b %d")
+        echo "$date (${offset}d) $mourner: $d_fname $d_lname"
+      done
+    
+    ;;
+
+  *)
+    usage
+    ;;
+esac
