@@ -14,6 +14,8 @@ else
 fi
 
 COOKIE_JAR=$HOME/.shulcloudassist.cookies
+DOC_SNAPSHOT=$HOME/.shulcloudassist.last
+delim="|"
 
 case $(uname) in
   Darwin)
@@ -26,6 +28,7 @@ esac
 
 usage() {
   echo "Usage: $(basename $0) -a yz [-w <week-offset>]"
+  echo "Usage: $(basename $0) -a forms [ -d <delim> ]"
   exit 1
 }
 
@@ -53,13 +56,16 @@ login() {
   fi
 }
 
-while getopts ":a:w:h" o; do
+while getopts ":a:w:d:h" o; do
   case "${o}" in
     a)
       action=$OPTARG
       ;;
     w)
       week=$OPTARG
+      ;;
+    d)
+      delim=$OPTARG
       ;;
     * | h)
       usage
@@ -117,6 +123,30 @@ case "$action" in
     
     ;;
 
+  forms)
+    login
+    curl -s -G \
+         -b $COOKIE_JAR -c $COOKIE_JAR \
+         -d query= \
+         -d archived=N \
+         -d type= \
+         -d setPerPage=300 \
+         -d apply_filters=Update+Filter \
+         $BASE/admin/forms.php > $DOC_SNAPSHOT
+    
+    rows=$(($(cat $DOC_SNAPSHOT | pup table.listing | grep '<tr ' | wc -l) + 1))
+
+    i=2
+    while [ $i -lt "$rows" ] ; do
+      name=$(cat $DOC_SNAPSHOT | pup "table.listing tr:nth-child($i) td:nth-child(1) text{}")
+      submissions=$(cat $DOC_SNAPSHOT | pup "table.listing tr:nth-child($i) td:nth-child(4) text{}" | sed 's/[^0-9]*//')
+      id=$(cat $DOC_SNAPSHOT | pup "table.listing tr:nth-child($i) td:nth-child(5) a[href*=action=edit] attr{href}" | sed 's/.*id=//')
+      echo "${id}${delim}$name${delim}$submissions"
+      i=$(($i + 1))      
+    done
+
+    ;;
+  
   *)
     usage
     ;;

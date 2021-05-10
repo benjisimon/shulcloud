@@ -14,3 +14,8 @@ BASE=https://<domain of your shulcloud instance>
 
 To see what specific commands are available, run shulcloudassist with
 -h.
+
+## Dependencies
+
+* csvkit
+* pup
