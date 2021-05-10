@@ -29,6 +29,7 @@ esac
 usage() {
   echo "Usage: $(basename $0) -a yz [-w <week-offset>]"
   echo "Usage: $(basename $0) -a forms [ -d <delim> ]"
+  echo "Usage: $(basename $0) -a export-form -i <id> [ -d <delim> ]"
   exit 1
 }
 
@@ -56,7 +57,7 @@ login() {
   fi
 }
 
-while getopts ":a:w:d:h" o; do
+while getopts ":a:w:d:i:h" o; do
   case "${o}" in
     a)
       action=$OPTARG
@@ -67,6 +68,9 @@ while getopts ":a:w:d:h" o; do
     d)
       delim=$OPTARG
       ;;
+    i)
+      id=$OPTARG
+      ;;    
     * | h)
       usage
       ;;
@@ -144,7 +148,36 @@ case "$action" in
       echo "${id}${delim}$name${delim}$submissions"
       i=$(($i + 1))      
     done
+    ;;
 
+  export-form)
+    if [ -z "$id" ] ; then
+      usage
+    fi
+    login
+
+    curl -s -G \
+         -b $COOKIE_JAR -c $COOKIE_JAR \
+         -d "action=viewSubmissions" \
+         -d "submission_view=export" \
+         -d "id=$id" \
+         -d "order=" \
+         -d "order_asc=&h%5B%5D=created&h%5B%5D=ip_address&h%5B%5D=full_name&h%5B%5D=account_name&h%5B%5D=monetary_total" \
+         -d "group_by=" \
+         -d "group_by_order=asc" \
+         -d "skip_field=" \
+         -d "sort_field=" \
+         -d "sort_field_order=asc" \
+         -d "hide_deleted=N" \
+         -d "condense_repeaters=N" \
+         -d "start_date=" \
+         -d "text_start_date=" \
+         -d "last_start_date=" \
+         -d "end_date=" \
+         -d "text_end_date=" \
+         -d "last_end_date=" \
+         -d "search=" \
+         $BASE/admin/forms.php
     ;;
   
   *)
